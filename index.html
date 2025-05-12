@@ -1,0 +1,101 @@
+<head>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    function writeCookie(data) {
+      document.cookie = data + "; SameSite=strict";
+    }
+    function readCookie() {
+      data = document.cookie
+      if(data != '') {
+        return JSON.parse(data)
+      } else {
+        return [] 
+      }
+    }
+    function timers() {
+      return {
+        newName: '',
+        timersList: '',
+        initTimersList() {
+          this.timersList = ''
+          timersData = readCookie()
+          timersData.forEach(element => {
+            this.timersList = this.timersList + this.drawTimer(element.id,element.name,element.epoch)
+          });
+        },
+        addTimer(name) {
+          newTimer = {
+            id: crypto.randomUUID(),
+            name: name,
+            epoch: Date.now(),
+          }
+          timersData = readCookie()
+          timersData.push(newTimer)
+          writeCookie(JSON.stringify(timersData))
+          this.initTimersList()
+          this.newName = ''
+        },
+        drawTimer(id, name,epoch) {
+          return '\
+<div x-data="timerComponent(\'' + id + '\',\'' + name + '\',\'' + epoch + '\')" x-init="init()" style="border: solid; padding: 5px; width: fit-content;">\
+  <p x-text="name"></p>\
+  <p x-text="msToTime(getTime())" style="display: inline;"></p>\
+  <button @click="resetEpoch()" style="display: inline;">Reset</button><button @click="deleteTimer(id)" style="display: inline;">Delete</button>\
+</div>'
+        }
+      }
+    }
+    function timerComponent(id, timerName, epoch) {
+      return {
+        id: id,
+        name: timerName,
+        epoch: epoch,
+        time: Date.now(),
+        init() {
+          setInterval(() => {
+            this.time = Date.now()
+          }, 1000);
+        },
+        getTime() {
+            return this.time - this.epoch
+        },
+        deleteTimer(id) {
+          timersData = readCookie()
+          index = timersData.findIndex((element) => element.id == id)
+          timersData.splice(index,1)
+          writeCookie(JSON.stringify(timersData))
+          this.initTimersList()
+        },
+        updateTimerEpoch(id,epoch) {
+          timersData = readCookie()
+          timersData[timersData.findIndex((element) => element.id == id)].epoch = epoch
+          writeCookie(JSON.stringify(timersData))
+        },
+        resetEpoch() {
+          this.epoch = Date.now()
+          this.updateTimerEpoch(this.id,this.epoch)
+        }
+      }
+    }
+    function msToTime(duration) {
+          seconds = parseInt((duration/1000)%60)
+          , minutes = parseInt((duration/(1000*60))%60)
+          , hours = parseInt((duration/(1000*60*60))%24)
+          , days = parseInt((duration/(1000*60*60*24)))
+
+      hours = (hours < 10) ? "0" + hours : hours;
+      minutes = (minutes < 10) ? "0" + minutes : minutes;
+      seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+      return days + ":" + hours + ":" + minutes + ":" + seconds;
+    }
+</script>
+</head>
+
+<body>
+  <div x-data="timers()" x-init="initTimersList()">
+    <span x-html="timersList"></span>
+    <input x-model="newName" placeholder="New Timer Name" type="text" \>
+    <button @click="addTimer(newName)">add new timer</button>
+  </div>
+</body>
