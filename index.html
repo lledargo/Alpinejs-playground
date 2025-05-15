@@ -1,24 +1,100 @@
 <head>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script>
-    function writeCookie(data) {
-      document.cookie = data + "; SameSite=strict";
+
+    storage = ""
+/***************
+ * IO functions
+***************/
+
+    function writeCookie(name, data) {
+      document.cookie = name + "=" + data + "; SameSite=strict; max-age=31536000;"
     }
-    function readCookie() {
-      data = document.cookie
-      if(data != '') {
-        return JSON.parse(data)
+    function writeLocalStorage(name, data) {
+      localStorage.setItem(name,data)
+    } 
+    function readCookie(name) {
+      kv = document.cookie.split(";").filter((element) => element.match(RegExp(name+"=")))  //array of key/value pairs filte4red by $name
+      if (kv.length >= 1) {
+        data = kv[0].split("=")[1]
+        if(data != '') {
+          return data
+        }
       } else {
-        return [] 
+        return "[]" 
       }
     }
-    function timers() {
+    function readLocalStorage(name) {
+      data = localStorage.getItem(name)
+      if( data == null) {
+        return "[]" 
+      } else {
+        return data
+      }
+    }
+
+    function write(name, data) {
+      switch(storage) {
+        case "cookie":
+          writeCookie(name,data)
+          break;
+        case "local":
+          writeLocalStorage(name,data)
+          break;
+      }
+    }
+    function read(name) {
+      switch(storage) {
+        case "cookie":
+          return JSON.parse(readCookie(name));
+        case "local":
+          return JSON.parse(readLocalStorage(name));
+      }
+    }
+    
+    function setStorageMethod(option) {
+      writeCookie("storageMethod",option)
+      window.location.reload()
+    }
+
+    
+/***************
+ * Application
+***************/
+
+    function application() {
+      return {
+        appInit() {
+          storage = readCookie("storageMethod")
+        },
+        appComponent() {
+          switch(storage) {
+            case "cookie":
+            case "local":
+              return '\
+  <div x-data="timersComponent()" x-init="initTimersList()">\
+    <span x-html="timersList"></span>\
+    <input @keyup.enter="addTimer(newName)" x-model="newName" placeholder="New Timer Name" type="text" \>\
+    <button @click="addTimer(newName)">Add New Timer</button>\
+  </div>';
+            default:
+              return '\
+  <p>Storage Method?</p>\
+  <input x-model="option" type="radio" value="cookie">Cookie</input>\
+  <input x-model="option" type="radio" value="local">Browser Local Storage</input>\
+  <button @click="setStorageMethod(option)">Set Storage Method</button>';
+          }
+        }
+      }
+    }
+
+    function timersComponent() {
       return {
         newName: '',
         timersList: '',
         initTimersList() {
           this.timersList = ''
-          timersData = readCookie()
+          timersData = read("timers")
           timersData.forEach(element => {
             this.timersList = this.timersList + this.drawTimer(element.id,element.name,element.epoch)
           });
@@ -29,15 +105,15 @@
             name: name,
             epoch: Date.now(),
           }
-          timersData = readCookie()
+          timersData = read("timers")
           timersData.push(newTimer)
-          writeCookie(JSON.stringify(timersData))
+          write("timers",JSON.stringify(timersData))
           this.initTimersList()
           this.newName = ''
         },
         drawTimer(id, name,epoch) {
           return '\
-<div x-data="timerComponent(\'' + id + '\',\'' + name + '\',\'' + epoch + '\')" x-init="init()" style="border: solid; padding: 5px; width: fit-content;">\
+<div x-data="timer(\'' + id + '\',\'' + name + '\',\'' + epoch + '\')" x-init="init()" style="border: solid; padding: 5px; width: fit-content;">\
   <p x-text="name"></p>\
   <p x-text="msToTime(getTime())" style="display: inline;"></p>\
   <button @click="resetEpoch()" style="display: inline;">Reset</button><button @click="deleteTimer(id)" style="display: inline;">Delete</button>\
@@ -45,7 +121,7 @@
         }
       }
     }
-    function timerComponent(id, timerName, epoch) {
+    function timer(id, timerName, epoch) {
       return {
         id: id,
         name: timerName,
@@ -60,16 +136,16 @@
             return this.time - this.epoch
         },
         deleteTimer(id) {
-          timersData = readCookie()
+          timersData = read("timers")
           index = timersData.findIndex((element) => element.id == id)
           timersData.splice(index,1)
-          writeCookie(JSON.stringify(timersData))
+          write("timers",JSON.stringify(timersData))
           this.initTimersList()
         },
         updateTimerEpoch(id,epoch) {
-          timersData = readCookie()
+          timersData = read("timers")
           timersData[timersData.findIndex((element) => element.id == id)].epoch = epoch
-          writeCookie(JSON.stringify(timersData))
+          write("timers",JSON.stringify(timersData))
         },
         resetEpoch() {
           this.epoch = Date.now()
@@ -93,9 +169,5 @@
 </head>
 
 <body>
-  <div x-data="timers()" x-init="initTimersList()">
-    <span x-html="timersList"></span>
-    <input x-model="newName" placeholder="New Timer Name" type="text" \>
-    <button @click="addTimer(newName)">add new timer</button>
-  </div>
+  <div x-data="application()" x-init="appInit()" x-html="appComponent()"></div>
 </body>
