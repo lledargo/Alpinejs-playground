@@ -141,22 +141,25 @@
           this.newName = ''
         },
         drop() {
+          //get the id of the dragged timer from the drag() function
           const id = event.dataTransfer.getData('text/plain')
           const closest = event.target.closest('.timer')
           const movingElement = document.getElementById(id)
           if(closest == null) { return }
-          closestPos = closest.offsetTop + (closest.getBoundingClientRect().height/2) 
-
+          //find the rough center of the closest timer so we can decide to drop the moved timer before or after
+          closestPos = closest.offsetTop + (closest.getBoundingClientRect().height/2)
+          
+          // make a copy of the moved timer to reinsert later. Then remove it from the array so we don't end up with a duplicate
           timersList = read("timers")
           timerIndex = timersList.findIndex((element) => element.id === movingElement.attributes.id.nodeValue )
           timerObject = timersList[timerIndex] 
           timersList.splice(timerIndex,1)
 
-          if(event.clientY <= closestPos){
+          if(event.clientY <= closestPos){ //if cursor is above closest timer, insert before it
             closest.before(movingElement)
             closestPos = timersList.findIndex((element) => element.id === closest.attributes.id.nodeValue )
             timersList.splice(closestPos,0,timerObject)
-          } else {
+          } else {                         // Otherwise, if cursor is below closest timer, insert after it
             closest.after(movingElement)
             closestPos= timersList.findIndex((element) => element.id === closest.attributes.id.nodeValue )
             timersList.splice(closestPos+1,0,timerObject)
@@ -172,12 +175,12 @@
         epoch: epoch,
         time: Date.now(),
         init() {
-          setInterval(() => {
+          setInterval(() => {  // timer refresh interval is 1000ms
             this.time = Date.now()
           }, 1000);
         },
         getTime() {
-            return this.time - this.epoch
+            return this.time - this.epoch // time is calculated at refresh, not incremented, to prevent stray
         },
         deleteTimer(id) {
           timersData = read("timers")
@@ -196,12 +199,13 @@
           this.updateTimerEpoch(this.id,this.epoch)
         },
         drag() {
+          //send the id of the dragged timer to the drop() function
           event.dataTransfer.effectAllowed = 'move'
           event.dataTransfer.setData('text/plain', event.target.id)
         }
       }
     }
-    function msToTime(duration) {
+    function msToTime(duration) { // convert time in ms to Days:hours:minutes:seconds
           seconds = parseInt((duration/1000)%60)
           , minutes = parseInt((duration/(1000*60))%60)
           , hours = parseInt((duration/(1000*60*60))%24)
