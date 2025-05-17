@@ -3,6 +3,39 @@
   <script>
 
     storage = ""
+
+/***************
+ * HTML templates
+ **************/    
+
+    unconfiguredHTML = () => '\
+  <h3>Storage Method?</h3>\
+  <p>preferences will be stored as cookies</p>\
+  <input x-model="option" type="radio" value="cookie">Cookie</input>\
+  <input x-model="option" type="radio" value="local">Browser Local Storage</input>\
+  <button @click="setStorageMethod(option)">Set Storage Method</button>'
+
+    timersComponentHTML = () => '\
+  <div x-data="timersComponent()" x-init="initTimersList()">\
+    <div style="border:solid; padding:5px; width:fit-content">\
+      <span x-html="timersList" x-on:drop.prevent="drop()" x-on:dragover.prevent="" x-on:dragleave.prevent=""></span>\
+    </div>\
+    <div style="padding-top:50">\
+      <input @keyup.enter="addTimer(newName)" x-model="newName" placeholder="New Timer Name" type="text" \>\
+      <button @click="addTimer(newName)">Add New Timer</button>\
+    </div>\
+  </div>'
+    
+    timerComponentHTML = (id, name,epoch) => {
+      return '\
+<div class="timer" id=\'' + id + '\' x-data="timer(\'' + id + '\',\'' + name + '\',\'' + epoch + '\')" x-init="init()" draggable="true" x-on:dragstart.self="drag()" style="border: solid; padding: 5px; width: fit-content; margin-top:5px;">\
+  <p x-text="name"></p>\
+  <p x-text="msToTime(getTime())" style="display: inline;"></p>\
+  <button @click="resetEpoch()" style="display: inline;">Reset</button><button @click="deleteTimer(id)" style="display: inline;">Delete</button>\
+</div>'
+        }
+
+
 /***************
  * IO functions
 ***************/
@@ -10,9 +43,6 @@
     function writeCookie(name, data) {
       document.cookie = name + "=" + data + "; SameSite=strict; max-age=31536000;"
     }
-    function writeLocalStorage(name, data) {
-      localStorage.setItem(name,data)
-    } 
     function readCookie(name) {
       kv = document.cookie.split(";").filter((element) => element.match(RegExp(name+"=")))  //array of key/value pairs filte4red by $name
       if (kv.length >= 1) {
@@ -24,6 +54,10 @@
         return "[]" 
       }
     }
+
+    function writeLocalStorage(name, data) {
+      localStorage.setItem(name,data)
+    } 
     function readLocalStorage(name) {
       data = localStorage.getItem(name)
       if( data == null) {
@@ -71,18 +105,9 @@
           switch(storage) {
             case "cookie":
             case "local":
-              return '\
-  <div x-data="timersComponent()" x-init="initTimersList()">\
-    <span x-html="timersList"></span>\
-    <input @keyup.enter="addTimer(newName)" x-model="newName" placeholder="New Timer Name" type="text" \>\
-    <button @click="addTimer(newName)">Add New Timer</button>\
-  </div>';
+              return timersComponentHTML;
             default:
-              return '\
-  <p>Storage Method?</p>\
-  <input x-model="option" type="radio" value="cookie">Cookie</input>\
-  <input x-model="option" type="radio" value="local">Browser Local Storage</input>\
-  <button @click="setStorageMethod(option)">Set Storage Method</button>';
+              return unconfiguredHTML;
           }
         }
       }
@@ -96,10 +121,14 @@
           this.timersList = ''
           timersData = read("timers")
           timersData.forEach(element => {
-            this.timersList = this.timersList + this.drawTimer(element.id,element.name,element.epoch)
+            this.timersList = this.timersList + timerComponentHTML(element.id,element.name,element.epoch)
           });
         },
         addTimer(name) {
+          if(name.match('\'|\"|\\\\')) {
+            console.log("timer name cannot contain special characters.")
+            return
+          }
           newTimer = {
             id: crypto.randomUUID(),
             name: name,
@@ -111,14 +140,29 @@
           this.initTimersList()
           this.newName = ''
         },
-        drawTimer(id, name,epoch) {
-          return '\
-<div x-data="timer(\'' + id + '\',\'' + name + '\',\'' + epoch + '\')" x-init="init()" style="border: solid; padding: 5px; width: fit-content;">\
-  <p x-text="name"></p>\
-  <p x-text="msToTime(getTime())" style="display: inline;"></p>\
-  <button @click="resetEpoch()" style="display: inline;">Reset</button><button @click="deleteTimer(id)" style="display: inline;">Delete</button>\
-</div>'
-        }
+        drop() {
+          const id = event.dataTransfer.getData('text/plain')
+          const closest = event.target.closest('.timer')
+          const movingElement = document.getElementById(id)
+          if(closest == null) { return }
+          closestPos = closest.offsetTop + (closest.getBoundingClientRect().height/2) 
+
+          timersList = read("timers")
+          timerIndex = timersList.findIndex((element) => element.id === movingElement.attributes.id.nodeValue )
+          timerObject = timersList[timerIndex] 
+          timersList.splice(timerIndex,1)
+
+          if(event.clientY <= closestPos){
+            closest.before(movingElement)
+            closestPos = timersList.findIndex((element) => element.id === closest.attributes.id.nodeValue )
+            timersList.splice(closestPos,0,timerObject)
+          } else {
+            closest.after(movingElement)
+            closestPos= timersList.findIndex((element) => element.id === closest.attributes.id.nodeValue )
+            timersList.splice(closestPos+1,0,timerObject)
+          }
+          write("timers",JSON.stringify(timersList))
+        },
       }
     }
     function timer(id, timerName, epoch) {
@@ -150,6 +194,10 @@
         resetEpoch() {
           this.epoch = Date.now()
           this.updateTimerEpoch(this.id,this.epoch)
+        },
+        drag() {
+          event.dataTransfer.effectAllowed = 'move'
+          event.dataTransfer.setData('text/plain', event.target.id)
         }
       }
     }
